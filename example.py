@@ -12,7 +12,7 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
-cursor.execute("SELECT * FROM employees WHERE salary > %s", (50000,))
+cursor.execute("CREATE TABLE User(username VARCHAR PRIMARY KEY, password VARCHAR)", (50000,))
 rows = cursor.fetchall()
 
 for row in rows:
