@@ -12,7 +12,9 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
-cursor.execute("CREATE TABLE User(username VARCHAR PRIMARY KEY, password VARCHAR)", (50000,))
+cursor.execute("SELECT * FROM stocks")
+
+# cursor.execute("CREATE TABLE User(username VARCHAR PRIMARY KEY, password VARCHAR);", (50000,))
 rows = cursor.fetchall()
 
 for row in rows:
