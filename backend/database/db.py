@@ -27,3 +27,17 @@ def get_connection():
 
 def release_connection(conn):
     db_pool.putconn(conn)
+
+def execute_query(query, params=None, fetch=True):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, params or ())
+        if fetch:
+            return cursor.fetchall()
+        else:
+            conn.commit()
+    finally:
+        cursor.close()
+        release_connection(conn)
+
