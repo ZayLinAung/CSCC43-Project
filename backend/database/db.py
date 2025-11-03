@@ -2,6 +2,7 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import os
+from fastapi import HTTPException
 
 # Load environment variables from .env
 load_dotenv()
@@ -37,6 +38,9 @@ def execute_query(query, params=None, fetch=True):
             return cursor.fetchall()
         else:
             conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
         release_connection(conn)

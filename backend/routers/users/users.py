@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from ...db import get_conn, release_conn
+from database.db import get_connection, release_connection
 
 router = APIRouter(
-    prefix="/",
+    prefix="",
     tags=["users"]
 )
 
@@ -16,7 +16,7 @@ class UserOut(BaseModel):
 
 @router.post("/signup", response_model=UserOut)
 def sign_up(user: User, request: Request):
-    conn = get_conn()
+    conn = get_connection()
     try:
         cur = conn.cursor()
 
@@ -42,12 +42,12 @@ def sign_up(user: User, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
-        release_conn(conn)
+        release_connection(conn)
 
 
 @router.post("/login")
 def login(user: User, request: Request):
-    conn = get_conn()
+    conn = get_connection()
     try:
         cur = conn.cursor()
 
@@ -63,7 +63,7 @@ def login(user: User, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        release_conn(conn)
+        release_connection(conn)
 
 
 def get_current_user(request: Request):
@@ -80,7 +80,7 @@ def read_users_me(current_user: dict = Depends(get_current_user)):
 
 @router.get("/{user_id}")
 def search_users(user_id: int, current_user: dict = Depends(get_current_user)):
-    conn = get_conn()
+    conn = get_connection()
     try:
         cur = conn.cursor()
 
@@ -94,5 +94,4 @@ def search_users(user_id: int, current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
-        release_conn(conn)
-
+        release_connection(conn)
