@@ -1,0 +1,4 @@
+pg_dump -h taggit.tech -U postgres -d postgres -t stocks --no-owner --no-privileges | psql -h aws-1-us-east-2.pooler.supabase.com -p 5432 -d postgres -U postgres.djayiswvgdxzpseicbnl
+
+
+pg_dump -h aws-1-us-east-2.pooler.supabase.com -p 5432 -d postgres -U postgres.djayiswvgdxzpseicbnl --no-owner --no-privileges | psql -h taggit.tech -U postgres -d postgres

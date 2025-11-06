@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from ...db import get_conn, release_conn
+from db import get_conn
 
 router = APIRouter(
-    prefix="/",
+    prefix="/users",
     tags=["users"]
 )
 
@@ -20,7 +20,7 @@ def sign_up(user: User, request: Request):
     try:
         cur = conn.cursor()
 
-        cur.execute("SELECT id FROM users WHERE username=%s;", (user.username,))
+        cur.execute("SELECT username FROM users WHERE username=%s;", (user.username,))
         existing_user = cur.fetchone()
 
         if existing_user:
@@ -42,7 +42,7 @@ def sign_up(user: User, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
-        release_conn(conn)
+        conn.close()
 
 
 @router.post("/login")
@@ -63,7 +63,7 @@ def login(user: User, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        release_conn(conn)
+        conn.close()
 
 
 def get_current_user(request: Request):
@@ -73,26 +73,29 @@ def get_current_user(request: Request):
     return user
 
 
-@router.get("/users/me", response_model=UserOut)
+@router.get("/me", response_model=UserOut)
 def read_users_me(current_user: dict = Depends(get_current_user)):
-    return current_user
+    return {"username": current_user}
 
 
 @router.get("/{user_id}")
-def search_users(user_id: int, current_user: dict = Depends(get_current_user)):
+def search_users(user_id: str, current_user: dict = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
 
-        cur.execute("(SELECT username FROM users WHERE username LIKE %s) EXCEPT (SELECT username FROM users WHERE username = %s);", (f"%{user_id}%", current_user))
+        cur.execute("(SELECT username FROM users WHERE username LIKE %s) " \
+        "EXCEPT (SELECT username FROM users WHERE username = %s);", 
+        (f"%{user_id}%", current_user))
+        
         results = cur.fetchall()
         cur.close()
 
-        return {"users": results}
+        return {"users": [x["username"] for x in results]}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
-        release_conn(conn)
+        conn.close()
 
