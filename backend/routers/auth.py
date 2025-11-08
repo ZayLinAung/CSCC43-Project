@@ -79,7 +79,7 @@ def read_users_me(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/{user_id}")
-def search_users(user_id: str, current_user: dict = Depends(get_current_user)):
+def search_users(user_id: str, current_user: str = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
@@ -99,3 +99,21 @@ def search_users(user_id: str, current_user: dict = Depends(get_current_user)):
     finally:
         conn.close()
 
+@router.get("/friends")
+def get_friends(current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+
+        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'accepted';", (current_user,))
+        
+        results = cur.fetchall()
+        cur.close()
+
+        return {"friends": [x["friendname"] for x in results]}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()

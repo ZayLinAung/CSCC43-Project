@@ -5,5 +5,5 @@ from routers.auth import get_current_user
 
 router = APIRouter(
     prefix="/{stocklist_id}/reviews",
-    tags=["users-detail"]
+    tags=["users-reviews"]
 )
