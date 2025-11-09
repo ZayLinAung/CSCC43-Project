@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from db import get_conn
+from database.db import get_conn
 
 router = APIRouter(
     prefix="/users",
@@ -67,31 +67,41 @@ def login(user: User, request: Request):
 
 
 def get_current_user(request: Request):
-    user = request.session.get("user")["username"]
-    if not user:
+    user_session = request.session.get("user")
+    if not user_session or "username" not in user_session:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
+    return user_session["username"]
 
 
 @router.get("/me", response_model=UserOut)
-def read_users_me(current_user: dict = Depends(get_current_user)):
+def read_users_me(current_user: str = Depends(get_current_user)):
     return {"username": current_user}
 
 
-@router.get("/{user_id}")
-def search_users(user_id: str, current_user: str = Depends(get_current_user)):
+
+@router.get("/all")
+def search_users_all(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
     conn = get_conn()
     try:
         cur = conn.cursor()
+        offset = (page - 1) * limit
 
-        cur.execute("(SELECT username FROM users WHERE username LIKE %s) " \
-        "EXCEPT (SELECT username FROM users WHERE username = %s);", 
-        (f"%{user_id}%", current_user))
-        
+        # Query for total count
+        cur.execute("(SELECT COUNT(*) FROM users WHERE username <> %s " \
+                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
+                    (current_user, current_user))
+        total_count = cur.fetchone()['count']
+
+        # Query for paginated results
+        cur.execute("(SELECT username FROM users WHERE username <> %s " \
+                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
+                    "ORDER BY username LIMIT %s OFFSET %s", 
+                    (current_user, current_user, limit, offset))
+
         results = cur.fetchall()
         cur.close()
 
-        return {"users": [x["username"] for x in results]}
+        return {"users": [x["username"] for x in results], "total": total_count}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -99,18 +109,102 @@ def search_users(user_id: str, current_user: str = Depends(get_current_user)):
     finally:
         conn.close()
 
-@router.get("/friends")
-def get_friends(current_user: str = Depends(get_current_user)):
+
+
+
+@router.get("/{user_id}")
+def search_users_by_id(user_id: str, current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
     conn = get_conn()
     try:
         cur = conn.cursor()
+        offset = (page - 1) * limit
+        search_pattern = f"%{user_id}%"
 
-        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'accepted';", (current_user,))
+        # Query for total count
+        cur.execute("(SELECT COUNT(*) FROM users WHERE username LIKE %s " \
+                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
+                    (search_pattern, current_user, current_user))
+        total_count = cur.fetchone()['count']
+
+        # Query for paginated results
+        cur.execute("(SELECT username FROM users WHERE username LIKE %s " \
+                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
+                    "ORDER BY username LIMIT %s OFFSET %s", 
+                    (search_pattern, current_user, current_user, limit, offset))
         
         results = cur.fetchall()
         cur.close()
 
-        return {"friends": [x["friendname"] for x in results]}
+        return {"users": [x["username"] for x in results], "total": total_count}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
+@router.get("/friends", tags=["friends"])
+def get_friends_list(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 10):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        offset = (page - 1) * limit
+
+        cur.execute("SELECT COUNT(*) FROM friends WHERE username = %s AND status = 'accepted';", (current_user,))
+        total_count = cur.fetchone()['count']
+
+        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'accepted' ORDER BY friendname LIMIT %s OFFSET %s;", (current_user, limit, offset))
+        
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["friendname"] for x in results], "total": total_count}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
+@router.get("/friends/pending", tags=["friends"])
+def get_pending_requests(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 10):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        offset = (page - 1) * limit
+
+        cur.execute("SELECT COUNT(*) FROM friends WHERE username = %s AND status = 'pending';", (current_user,))
+        total_count = cur.fetchone()['count']
+
+        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'pending' ORDER BY friendname LIMIT %s OFFSET %s;", (current_user, limit, offset))
+        
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["friendname"] for x in results], "total": total_count}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
+@router.get("/friends/sent", tags=["friends"])
+def get_sent_requests(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 10):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        offset = (page - 1) * limit
+
+        cur.execute("SELECT COUNT(*) FROM friends WHERE username = %s AND status = 'sent';", (current_user,))
+        total_count = cur.fetchone()['count']
+
+        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'sent' ORDER BY friendname LIMIT %s OFFSET %s;", (current_user, limit, offset))
+        
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["friendname"] for x in results], "total": total_count}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from db import get_conn
+from database.db import get_conn
 from routers.auth import get_current_user
 
 router = APIRouter(
@@ -40,8 +40,8 @@ def add_friend(username: str, current_user: str = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'pending');", (current_user, username))
-        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'sent');", (username, current_user))
+        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'sent');", (current_user, username))
+        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'pending');", (username, current_user))
 
         conn.commit()
         return {"message": "Friend request sent"}
@@ -70,6 +70,11 @@ def accept_friend(username: str, current_user: str = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
+        # Check if the request exists and is pending
+        cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s AND status = 'pending';", (current_user, username))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Friend request not found or not pending")
+
         cur.execute("""UPDATE friends SET status = 'accepted' 
                     WHERE (username = %s AND friendname = %s) OR (username = %s AND friendname = %s);""",
           (username, current_user, current_user, username))
@@ -81,12 +86,17 @@ def accept_friend(username: str, current_user: str = Depends(get_current_user)):
         conn.close()
 
 
-@router.get("/reject-request")
+@router.patch("/reject-request")
 def reject_friend(username: str, current_user: str = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("""UPDATE friends SET status = 'rejected' 
+        # Check if the request exists and is pending
+        cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s AND status = 'pending';", (current_user, username))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Friend request not found or not pending")
+
+        cur.execute("""DELETE FROM friends
                     WHERE (username = %s AND friendname = %s)
                      OR (username = %s AND friendname = %s);""",
           (username, current_user, current_user, username))
