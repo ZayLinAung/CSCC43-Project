@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from ...db import get_conn, release_conn
+from database.db import get_conn, release_conn
 
 
 
