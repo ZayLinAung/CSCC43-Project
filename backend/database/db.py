@@ -44,10 +44,12 @@ def execute_query(query, params=None, fetch=True):
     try:
         cursor = conn.cursor()
         cursor.execute(query, params or ())
+        result = None
         if fetch:
-            return cursor.fetchall()
-        else:
-            conn.commit()
+            result = cursor.fetchall()
+        conn.commit()
+        return result
+
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))

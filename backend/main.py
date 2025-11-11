@@ -1,4 +1,4 @@
-from routers import auth, stocklist, users, stock, reviews
+from routers import auth, stocklist, users, stocks, reviews, portfolio
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,9 +18,10 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(stocklist.router)
-app.include_router(stock.router)
+app.include_router(stocks.router)
 app.include_router(users.router)
 app.include_router(reviews.router)
+app.include_router(portfolio.router)
 
 @app.get("/test")
 def read_test():
