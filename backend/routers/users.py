@@ -1,97 +1,108 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
-from database.db import get_connection, release_connection
+from database.db import get_conn
+from routers.auth import get_current_user
 
 router = APIRouter(
-    prefix="",
-    tags=["users"]
+    prefix="/users/{username}",
+    tags=["users-detail"]
 )
 
 class User(BaseModel):
     username: str
     password: str
 
-class UserOut(BaseModel):
-    username: str
 
-@router.post("/signup", response_model=UserOut)
-def sign_up(user: User, request: Request):
-    conn = get_connection()
+@router.get("/stocklists")
+def get_user_stocklists(username: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
     try:
         cur = conn.cursor()
+        if username == current_user:
+            cur.execute("SELECT * FROM stocklists WHERE username = %s;", (username,))
+        else:
+            cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s;", (username, current_user))
+            friendship = cur.fetchone()
+            if friendship and friendship["status"] == "accepted":
+                cur.execute("SELECT * FROM stocklists WHERE username = %s AND (visibility = 'friends' OR visibility = 'public');", (username,))
+            else:
+                cur.execute("SELECT * FROM stocklists WHERE username = %s AND visibility = 'public';", (username,))
+            stocklists = cur.fetchall()
+            cur.close()
+            return {"stocklists": stocklists}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
-        cur.execute("SELECT id FROM users WHERE username=%s;", (user.username,))
-        existing_user = cur.fetchone()
+@router.post("/send-friend-request")
+def add_friend(username: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'sent');", (current_user, username))
+        cur.execute("INSERT INTO friends (username, friendname, status) VALUES (%s, %s, 'pending');", (username, current_user))
 
-        if existing_user:
-            raise HTTPException(status_code=400, detail=f"User {user.username} already exists")
-
-        cur.execute("INSERT into users (username, password) VALUES (%s, %s) RETURNING username;", (user.username, user.password))
-        created_username = cur.fetchone()["username"]
         conn.commit()
-        cur.close()
-
-        if not created_username:
-            raise HTTPException(status_code=404, detail="User could not be created")
-
-        request.session["user"] = {"username": created_username}
-        return {"username": created_username}
-
+        return {"message": "Friend request sent"}
     except Exception as e:
-        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
-    
     finally:
-        release_connection(conn)
+        conn.close()
 
 
-@router.post("/login")
-def login(user: User, request: Request):
-    conn = get_connection()
+@router.delete("/remove-friend")
+def remove_friend(username: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
     try:
         cur = conn.cursor()
-
-        cur.execute("SELECT username FROM users WHERE username=%s AND password=%s;", (user.username, user.password))
-        db_user = cur.fetchone()
-
-        if not db_user:
-            raise HTTPException(status_code=400, detail="Invalid username or password")
-        cur.close()
-        
-        request.session["user"] = {"username": db_user["username"]}
-        return {"message": "Login successful", "user": {"username": db_user["username"]}}
+        cur.execute("DELETE FROM friends WHERE username = %s AND friendname = %s;", (current_user, username))
+        conn.commit()
+        return {"message": "Friend removed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        release_connection(conn)
+        conn.close()
 
 
-def get_current_user(request: Request):
-    user = request.session.get("user")["username"]
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
-
-
-@router.get("/users/me", response_model=UserOut)
-def read_users_me(current_user: dict = Depends(get_current_user)):
-    return current_user
-
-
-@router.get("/{user_id}")
-def search_users(user_id: int, current_user: dict = Depends(get_current_user)):
-    conn = get_connection()
+@router.patch("/accept-request")
+def accept_friend(username: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
     try:
         cur = conn.cursor()
+        # Check if the request exists and is pending
+        cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s AND status = 'pending';", (current_user, username))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Friend request not found or not pending")
 
-        cur.execute("(SELECT username FROM users WHERE username LIKE %s) EXCEPT (SELECT username FROM users WHERE username = %s);", (f"%{user_id}%", current_user))
-        results = cur.fetchall()
-        cur.close()
-
-        return {"users": results}
-    
+        cur.execute("""UPDATE friends SET status = 'accepted' 
+                    WHERE (username = %s AND friendname = %s) OR (username = %s AND friendname = %s);""",
+          (username, current_user, current_user, username))
+        conn.commit()
+        return {"message": "Friend request accepted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
     finally:
-        release_connection(conn)
+        conn.close()
+
+
+@router.patch("/reject-request")
+def reject_friend(username: str, current_user: str = Depends(get_current_user)):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        # Check if the request exists and is pending
+        cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s AND status = 'pending';", (current_user, username))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Friend request not found or not pending")
+
+        cur.execute("""DELETE FROM friends
+                    WHERE (username = %s AND friendname = %s)
+                     OR (username = %s AND friendname = %s);""",
+          (username, current_user, current_user, username))
+        conn.commit()
+        return {"message": "Friend request rejected"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()

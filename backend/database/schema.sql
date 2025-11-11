@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS transaction (
     transaction_id SERIAL PRIMARY KEY,         
     amount REAL DEFAULT 0,                     
     type transaction_type NOT NULL,                 
-    timestamp TIMESTAMP NOT NULL DEFAULT NOW(),    
+    timestamp TIMESTAMP NOT NULL DEFAULT NOW(),   
     portfolio_id INT NOT NULL,                      
     username VARCHAR,
     stock_symbol VARCHAR DEFAULT NULL,
