@@ -38,7 +38,7 @@ def get_own_stocklists(current_user: str = Depends(get_current_user)):
 @router.post("/create")
 def create_stocklist(stocklist: Stocklist, 
                      current_user: str = Depends(get_current_user)):
-    
+
     conn = get_conn()
     try:
         cur = conn.cursor()
@@ -77,7 +77,7 @@ def delete_stocklist(stocklist_id: int, current_user: str = Depends(get_current_
         conn.close()
 
 
-@router.post("/{stocklist_id}/add_stock")
+@router.post("/{stocklist_id}/add-stock")
 def add_stock_to_stocklist(stocklist_id: int,
                             stock: Stock, current_user: str = Depends(get_current_user)):
     
@@ -112,7 +112,7 @@ def add_stock_to_stocklist(stocklist_id: int,
         conn.close()
 
 
-@router.delete("/{stocklist_id}/remove_stock")
+@router.patch("/{stocklist_id}/sell-stock")
 def remove_stock_from_stocklist(stocklist_id: int, stock: Stock, 
                                 current_user: str = Depends(get_current_user)):
     conn = get_conn()
@@ -163,8 +163,10 @@ def get_stocklist_items(stocklist_id: int, current_user: str = Depends(get_curre
                     (stocklist_id, current_user, stocklist_id))
 
         items = cur.fetchall()
+        cur.execute("SELECT * FROM stocklists WHERE stocklist_id = %s;", (stocklist_id,))
+        stocklist = cur.fetchone()
         cur.close()
-        return {"items": items}
+        return {"items": items, "title": stocklist["title"], "username": stocklist["username"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -203,6 +205,8 @@ def share_stocklist(stocklist_id: int, friend: dict, current_user: str = Depends
 
         cur.execute("INSERT INTO shared (stocklist_id, friendname) VALUES (%s, %s);",
                     (stocklist_id, friend["username"]))
+        cur.execute("UPDATE stocklists SET visibility = 'friends' WHERE stocklist_id = %s;", (stocklist_id,))
+
         conn.commit()
         return {"message": "Stocklist shared with friends"}
     except Exception as e:

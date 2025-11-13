@@ -11,6 +11,7 @@ export default function Navbar() {
     { href: '/friends', label: 'Friends' },
     { href: '/stocks', label: 'Stocks' },
     { href: '/portfolio', label: 'My Portfolio' },
+    { href: '/stocklists', label: 'Stocklists' },
   ];
 
   return (
