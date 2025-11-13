@@ -5,7 +5,7 @@ from datetime import date
 from routers.auth import get_current_user
 
 router = APIRouter(
-    prefix="/portfolio",
+    prefix="/portfolio/{username}",
     tags=["portfolio"]
 )
 
@@ -23,24 +23,38 @@ class Transaction(BaseModel):
 #Create Portfolio
 @router.post("/create")
 def create_portfolio(current_user: str = Depends(get_current_user)):
-
-    #Create new portfolio in portfolio table
-    query = "INSERT INTO portfolio DEFAULT VALUES RETURNING portfolio_id;"
+    # Create new portfolio and RETURN portfolio_id + cash
+    query = """
+        INSERT INTO portfolio DEFAULT VALUES 
+        RETURNING portfolio_id, cash;
+    """
     result = execute_query(query)
 
     if not result:
-        raise HTTPException(status_code=404, detail=f"Cannot create portfolio")
-    
+        raise HTTPException(status_code=500, detail="Cannot create portfolio")
+
     portfolio_id = result[0]["portfolio_id"]
-    
-    #Insert into portfolio_owned table
-    query = "INSERT INTO portfolio_owned VALUES (%s, %s)"
-    execute_query(query, (portfolio_id, current_user), False)
+    cash = result[0]["cash"]
+
+    # Insert into portfolio_owned table
+    ownership_query = """
+        INSERT INTO portfolio_owned (portfolio_id, username)
+        VALUES (%s, %s)
+    """
+    execute_query(ownership_query, (portfolio_id, current_user), fetch=False)
+
+    # Return response
+    return {
+        "portfolio_id": portfolio_id,
+        "cash": cash
+    }
 
 
 # Endpoint to get all owned portfolios
 @router.get("")
 def get_allOwned_portfolio(current_user: str = Depends(get_current_user)):
+
+    print('called')
 
     query = """
         SELECT * FROM portfolio NATURAL JOIN portfolio_owned
@@ -224,4 +238,3 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
         )
 
     return {"message": "Transcation successful."}
-

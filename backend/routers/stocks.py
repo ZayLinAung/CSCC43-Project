@@ -23,6 +23,16 @@ class StockAdd(BaseModel):
     volume: int
 
 
+@router.get("")
+def list_allStocks_bySymbol():
+    query = ("SELECT symbol FROM stocks GROUP BY symbol ORDER BY symbol")
+    results = execute_query(query)
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No stocks found")
+
+    return {"result": results}
+
 # Endpoint to get stocks by symbol
 @router.get("/{symbol}")
 def get_stocks_by_symbol(symbol: str, request: Request):
