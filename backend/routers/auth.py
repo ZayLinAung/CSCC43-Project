@@ -48,6 +48,7 @@ def sign_up(user: User, request: Request):
 @router.post("/login")
 def login(user: User, request: Request):
     conn = get_conn()
+    print("Login attempt for user:", user.username)
     try:
         cur = conn.cursor()
 
@@ -78,83 +79,21 @@ def read_users_me(current_user: str = Depends(get_current_user)):
     return {"username": current_user}
 
 
-
-@router.get("/all")
-def search_users_all(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
-    conn = get_conn()
-    try:
-        cur = conn.cursor()
-        offset = (page - 1) * limit
-
-        # Query for total count
-        cur.execute("(SELECT COUNT(*) FROM users WHERE username <> %s " \
-                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
-                    (current_user, current_user))
-        total_count = cur.fetchone()['count']
-
-        # Query for paginated results
-        cur.execute("(SELECT username FROM users WHERE username <> %s " \
-                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
-                    "ORDER BY username LIMIT %s OFFSET %s", 
-                    (current_user, current_user, limit, offset))
-
-        results = cur.fetchall()
-        cur.close()
-
-        return {"users": [x["username"] for x in results], "total": total_count}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    finally:
-        conn.close()
-
-
-
-
-@router.get("/{user_id}")
-def search_users_by_id(user_id: str, current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
-    conn = get_conn()
-    try:
-        cur = conn.cursor()
-        offset = (page - 1) * limit
-        search_pattern = f"%{user_id}%"
-
-        # Query for total count
-        cur.execute("(SELECT COUNT(*) FROM users WHERE username LIKE %s " \
-                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
-                    (search_pattern, current_user, current_user))
-        total_count = cur.fetchone()['count']
-
-        # Query for paginated results
-        cur.execute("(SELECT username FROM users WHERE username LIKE %s " \
-                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
-                    "ORDER BY username LIMIT %s OFFSET %s", 
-                    (search_pattern, current_user, current_user, limit, offset))
-        
-        results = cur.fetchall()
-        cur.close()
-
-        return {"users": [x["username"] for x in results], "total": total_count}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    finally:
-        conn.close()
-
-@router.get("/friends", tags=["friends"])
+@router.get("/friends")
 def get_friends_list(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 10):
+    print("Here")
     conn = get_conn()
     try:
         cur = conn.cursor()
         offset = (page - 1) * limit
 
         cur.execute("SELECT COUNT(*) FROM friends WHERE username = %s AND status = 'accepted';", (current_user,))
-        total_count = cur.fetchone()['count']
+        total_count_result = cur.fetchone()
+        total_count = total_count_result['count'] if total_count_result else 0
+
 
         cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'accepted' ORDER BY friendname LIMIT %s OFFSET %s;", (current_user, limit, offset))
-        
+
         results = cur.fetchall()
         cur.close()
 
@@ -205,6 +144,69 @@ def get_sent_requests(current_user: str = Depends(get_current_user), page: int =
         cur.close()
 
         return {"users": [x["friendname"] for x in results], "total": total_count}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
+
+@router.get("/all")
+def search_users_all(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        offset = (page - 1) * limit
+
+        # Query for total count
+        cur.execute("(SELECT COUNT(*) FROM users WHERE username <> %s " \
+                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
+                    (current_user, current_user))
+        total_count = cur.fetchone()['count']
+
+        # Query for paginated results
+        cur.execute("(SELECT username FROM users WHERE username <> %s " \
+                    "AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
+                    "ORDER BY username LIMIT %s OFFSET %s", 
+                    (current_user, current_user, limit, offset))
+
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["username"] for x in results], "total": total_count}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
+
+@router.get("/{user_id}")
+def search_users_by_id(user_id: str, current_user: str = Depends(get_current_user), page: int = 1, limit: int = 50):
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        offset = (page - 1) * limit
+        search_pattern = f"%{user_id}%"
+
+        # Query for total count
+        cur.execute("(SELECT COUNT(*) FROM users WHERE username LIKE %s " \
+                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s))", 
+                    (search_pattern, current_user, current_user))
+        total_count = cur.fetchone()['count']
+
+        # Query for paginated results
+        cur.execute("(SELECT username FROM users WHERE username LIKE %s " \
+                    "AND username <> %s AND username NOT IN (SELECT friendname FROM friends WHERE username = %s)) " \
+                    "ORDER BY username LIMIT %s OFFSET %s", 
+                    (search_pattern, current_user, current_user, limit, offset))
+        
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["username"] for x in results], "total": total_count}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

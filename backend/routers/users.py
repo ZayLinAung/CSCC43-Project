@@ -56,7 +56,7 @@ def remove_friend(username: str, current_user: str = Depends(get_current_user)):
     conn = get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM friends WHERE username = %s AND friendname = %s;", (current_user, username))
+        cur.execute("DELETE FROM friends WHERE (username = %s AND friendname = %s) OR (username = %s AND friendname = %s);", (current_user, username, username, current_user))
         conn.commit()
         return {"message": "Friend removed"}
     except Exception as e:

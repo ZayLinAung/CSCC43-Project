@@ -9,6 +9,7 @@ export default function Navbar() {
   const navLinks = [
     { href: '/explore', label: 'Explore' },
     { href: '/friends', label: 'Friends' },
+    { href: '/stocklists', label: 'Stocklists' },
   ];
 
   return (
