@@ -5,7 +5,7 @@ from datetime import date
 from routers.auth import get_current_user
 
 router = APIRouter(
-    prefix="/portfolio/{username}",
+    prefix="/portfolio",
     tags=["portfolio"]
 )
 
@@ -74,16 +74,24 @@ def get_allOwned_portfolio(current_user: str = Depends(get_current_user)):
 def get_stocks_in_portfolio(portfolio_id: int, current_user: str = Depends(get_current_user)):
 
     query = """
-        SELECT * FROM portfolio NATURAL JOIN portfolio_holdings
-        WHERE portfolio_id = %s;
+        SELECT ph.stock_symbol, ph.shares
+        FROM portfolio p
+        JOIN portfolio_owned po ON p.portfolio_id = po.portfolio_id
+        JOIN portfolio_holdings ph ON p.portfolio_id = ph.portfolio_id
+        WHERE p.portfolio_id = %s
+        AND po.username = %s;
     """
     
-    results = execute_query(query, (current_user, portfolio_id))
+    results = execute_query(query, (portfolio_id, current_user))
+    
+    cash_query = """
+        SELECT cash FROM portfolio WHERE portfolio_id = %s;
+    """
+    cash_result = execute_query(cash_query, (portfolio_id,))
 
-    if not results:
-        raise HTTPException(status_code=404, detail=f"No portfolio found")
+    cash = cash_result[0]["cash"]
 
-    return {"result": results}
+    return {"cash": cash, "results": results}
 
 
 @router.post("/{portfolio_id}/transcation")
@@ -96,6 +104,7 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
 
     # Handle transaction types
     if transaction.type == "cash_deposit":
+        print('hi')
         queries.append("UPDATE portfolio SET cash = cash + %s WHERE portfolio_id = %s;")
         params.append((transaction.cash, portfolio_id))
 
@@ -134,6 +143,16 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
 
 
     elif transaction.type == 'stock_buy':
+         # First, check current cash balance
+        balance_query = "SELECT cash FROM portfolio WHERE portfolio_id = %s;"
+        result = execute_query(balance_query, (portfolio_id,))
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+
+        current_cash = result[0]['cash']
+
+        
         price_query = "SELECT close FROM stocks WHERE symbol = %s ORDER BY timestamp DESC LIMIT 1;"
         price_result = execute_query(price_query, (transaction.stock_symbol,), fetch=True)
 
@@ -142,6 +161,12 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
 
         price = price_result[0]["close"]
         total_cost = transaction.shares * price
+
+        if current_cash < total_cost:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient funds: current balance is {current_cash}"
+            )
         
         queries.append("UPDATE portfolio SET cash = cash - %s WHERE portfolio_id = %s;")
         params.append((total_cost, portfolio_id))
