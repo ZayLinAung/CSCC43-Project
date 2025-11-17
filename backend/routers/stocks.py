@@ -37,12 +37,25 @@ def list_allStocks_bySymbol():
 @router.get("/{symbol}")
 def get_stocks_by_symbol(symbol: str, request: Request):
     query = ("SELECT * FROM stocks WHERE symbol=%s;")
-    results = execute_query(query, (symbol))
+    results = execute_query(query, (symbol,))
 
     if not results:
         raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
 
     return {"result": results}
+
+
+# Endpoint to get stocks by symbol
+@router.get("/prediction/{symbol}")
+def get_stocks_by_symbol(symbol: str, request: Request):
+    query = ("SELECT * FROM stocks WHERE symbol=%s;")
+    results = execute_query(query, (symbol,))
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
+
+    return {"result": results}
+
 
 
 # Endpoint to update daily stocks information (manual)

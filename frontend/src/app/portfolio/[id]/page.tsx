@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
 interface PortfolioItem {
+  presentmarketvalue: number;
   stock_symbol: string;
   shares: number;
 }
@@ -34,7 +36,6 @@ export default function PortfolioDetailPage() {
   const [cashError, setCashError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
-
   // Fetch portfolio
   const fetchPortfolio = async () => {
     setIsLoading(true);
@@ -64,41 +65,39 @@ export default function PortfolioDetailPage() {
   // Add stock
   // Buy stock (using /transcation)
   // Add stock (Buy)
-const handleAddStock = async (e: React.FormEvent) => {
-  e.preventDefault();
-  try {
-    const response = await fetch(
-      `http://localhost:8000/portfolio/${id}/transcation`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          cash: 0,
-          type: "stock_buy",
-          stock_symbol: newItemSymbol.toUpperCase(),
-          shares: parseInt(newItemQuantity),
-        }),
+  const handleAddStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(
+        `http://localhost:8000/portfolio/${id}/transcation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            cash: 0,
+            type: "stock_buy",
+            stock_symbol: newItemSymbol.toUpperCase(),
+            shares: parseInt(newItemQuantity),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json();
+        setToast(err.detail || "Failed to buy stock");
+        setTimeout(() => setToast(null), 3500);
+        return;
       }
-    );
 
-    if (!response.ok) {
-      const err = await response.json();
-      setToast(err.detail || "Failed to buy stock");
+      setNewItemSymbol("");
+      setNewItemQuantity("1");
+      fetchPortfolio();
+    } catch (err: any) {
+      setToast(err.message);
       setTimeout(() => setToast(null), 3500);
-      return;
     }
-
-    setNewItemSymbol("");
-    setNewItemQuantity("1");
-    fetchPortfolio();
-
-  } catch (err: any) {
-    setToast(err.message);
-    setTimeout(() => setToast(null), 3500);
-  }
-};
-
+  };
 
   const handleSell = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +233,7 @@ const handleAddStock = async (e: React.FormEvent) => {
                       credentials: "include",
                       body: JSON.stringify({
                         cash: amount,
-                        stock_symbol: '',
+                        stock_symbol: "",
                         type: type,
                         shares: 0,
                       }),
@@ -359,6 +358,7 @@ const handleAddStock = async (e: React.FormEvent) => {
                 <tr>
                   <th className="px-6 py-3 text-left">Ticker</th>
                   <th className="px-6 py-3 text-left">Shares</th>
+                  <th className="px-6 py-3 text-left">Present Market Value</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -367,8 +367,17 @@ const handleAddStock = async (e: React.FormEvent) => {
                 {portfolio.length > 0 ? (
                   portfolio.map((item) => (
                     <tr key={item.stock_symbol} className="border-t">
-                      <td className="px-6 py-4">{item.stock_symbol}</td>
+                      <td className="px-6 py-4">
+                        <Link
+                          href={`/stocks/${item.stock_symbol}`}
+                          className="text-indigo-600 font-semibold hover:underline"
+                        >
+                          {item.stock_symbol}
+                        </Link>
+                      </td>
+
                       <td className="px-6 py-4">{item.shares}</td>
+                      <td className="px-6 py-4">{item.presentmarketvalue}</td>
 
                       <td className="px-6 py-4 text-right">
                         <button
@@ -401,12 +410,13 @@ const handleAddStock = async (e: React.FormEvent) => {
         </div>
       </div>
       {toast && (
-  <div className="fixed bottom-6 right-6 bg-red-600 text-white px-5 py-3 
-                  rounded-lg shadow-lg font-medium z-50 animate-fadeIn">
-    {toast}
-  </div>
-)}
-
+        <div
+          className="fixed bottom-6 right-6 bg-red-600 text-white px-5 py-3 
+                  rounded-lg shadow-lg font-medium z-50 animate-fadeIn"
+        >
+          {toast}
+        </div>
+      )}
     </>
   );
 }

@@ -74,10 +74,24 @@ def get_allOwned_portfolio(current_user: str = Depends(get_current_user)):
 def get_stocks_in_portfolio(portfolio_id: int, current_user: str = Depends(get_current_user)):
 
     query = """
-        SELECT ph.stock_symbol, ph.shares
+        SELECT 
+        ph.stock_symbol,
+        ph.shares,
+        s.close AS presentMarketValue
         FROM portfolio p
-        JOIN portfolio_owned po ON p.portfolio_id = po.portfolio_id
-        JOIN portfolio_holdings ph ON p.portfolio_id = ph.portfolio_id
+        JOIN portfolio_owned po 
+            ON p.portfolio_id = po.portfolio_id
+        JOIN portfolio_holdings ph 
+            ON p.portfolio_id = ph.portfolio_id
+        JOIN (
+            SELECT DISTINCT ON (symbol)
+                symbol,
+                close,
+                timestamp
+            FROM stocks
+            ORDER BY symbol, timestamp DESC
+        ) AS s
+            ON s.symbol = ph.stock_symbol
         WHERE p.portfolio_id = %s
         AND po.username = %s;
     """
