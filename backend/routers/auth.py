@@ -105,6 +105,27 @@ def get_friends_list(current_user: str = Depends(get_current_user), page: int = 
     finally:
         conn.close()
 
+
+@router.get("/friends/all")
+def get_friends_list(current_user: str = Depends(get_current_user)):
+    print("Here")
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+
+        cur.execute("SELECT friendname FROM friends WHERE username = %s AND status = 'accepted' ORDER BY friendname;", (current_user,))
+
+        results = cur.fetchall()
+        cur.close()
+
+        return {"users": [x["friendname"] for x in results]}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        conn.close()
+
 @router.get("/friends/pending", tags=["friends"])
 def get_pending_requests(current_user: str = Depends(get_current_user), page: int = 1, limit: int = 10):
     conn = get_conn()

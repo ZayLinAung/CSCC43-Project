@@ -147,13 +147,16 @@ function SellStockModal({ item, onClose, onSold }: { item: StocklistItem; onClos
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
-      <div className="relative z-50 w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
-        <h2 className="mb-2 text-2xl font-bold text-center">Sell Stock</h2>
-        <p className="mb-4 text-center text-gray-600">Selling: <span className="font-semibold">{item.symbol}</span></p>
-        <p className="mb-6 text-sm text-center text-gray-500">You currently own: {item.shares} shares</p>
-        <form onSubmit={handleSell}>
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sell Stock</DialogTitle>
+          <DialogDescription>
+            Selling: <span className="font-semibold">{item.symbol}</span>. You currently own {item.shares} shares.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSell} className="mt-4">
           <div className="mb-4">
             <label htmlFor="quantity" className="block mb-2 text-sm font-medium text-gray-700">Quantity to Sell</label>
             <input
@@ -177,8 +180,8 @@ function SellStockModal({ item, onClose, onSold }: { item: StocklistItem; onClos
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

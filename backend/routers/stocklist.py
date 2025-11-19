@@ -93,6 +93,9 @@ def add_stock_to_stocklist(stocklist_id: int,
         " timestamp < NOW() ORDER BY timestamp DESC;", (stock.symbol,))
         stock_data = cur.fetchone()
 
+        if not stock_data:
+            raise HTTPException(status_code=404, detail="Stock data not found")
+
         if items:
             cur.execute("UPDATE slitems SET shares = " \
             "shares + %s WHERE stocklist_id = %s AND symbol = %s AND timestamp = %s;",
@@ -152,15 +155,24 @@ def remove_stock_from_stocklist(stocklist_id: int, stock: Stock,
 @router.get("/{stocklist_id}/items")
 def get_stocklist_items(stocklist_id: int, current_user: str = Depends(get_current_user)):
     conn = get_conn()
+    print(current_user)
     try:
         cur = conn.cursor()
+        cur.execute("SELECT * FROM stocklists WHERE stocklist_id = %s;", (stocklist_id,))
+        stocklist_info = cur.fetchone()
+        if not stocklist_info or stocklist_info["visibility"] == "private" and stocklist_info["username"] != current_user:
+            raise HTTPException(status_code=403, detail="You do not have permission to view this stocklist")
+        if stocklist_info["visibility"] == "friends":
+            cur.execute("SELECT * FROM shared WHERE stocklist_id = %s AND friendname = %s;",
+                        (stocklist_id, current_user))
+            cur_result = cur.fetchone()
+            if not cur_result:
+                raise HTTPException(status_code=403, detail="You do not have permission to view this stocklist")
+
         cur.execute("""SELECT symbol, shares FROM slitems NATURAL JOIN stocklists
-                     WHERE stocklist_id = %s AND (visibility = 'public' OR 
-                     stocklists.username = %s OR
-                     (visibility = 'friends' AND stocklists.username IN
-                     (SELECT friendname FROM shared WHERE stocklist_id = %s))
+                     WHERE stocklist_id = %s
                     );""",
-                    (stocklist_id, current_user, stocklist_id))
+                    (stocklist_id,))
 
         items = cur.fetchall()
         cur.execute("SELECT * FROM stocklists WHERE stocklist_id = %s;", (stocklist_id,))
@@ -199,12 +211,12 @@ def share_stocklist(stocklist_id: int, friend: dict, current_user: str = Depends
     try:
         cur = conn.cursor()
         cur.execute("SELECT * FROM friends WHERE username = %s AND friendname = %s " \
-        "AND status = 'accepted';", (current_user, friend["username"]))
+        "AND status = 'accepted';", (current_user, friend["friendname"]))
         if not cur.fetchone():
             raise HTTPException(status_code=403, detail="You are not friends with this user")
 
         cur.execute("INSERT INTO shared (stocklist_id, friendname) VALUES (%s, %s);",
-                    (stocklist_id, friend["username"]))
+                    (stocklist_id, friend["friendname"]))
         cur.execute("UPDATE stocklists SET visibility = 'friends' WHERE stocklist_id = %s;", (stocklist_id,))
 
         conn.commit()

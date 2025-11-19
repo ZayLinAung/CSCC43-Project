@@ -9,15 +9,10 @@ interface Stocklist {
   username: string;
 }
 
-interface Friend {
-  id: number;
-  username: string;
-}
-
 type StocklistView = 'self' | 'public' | 'friends';
 
 function ShareStocklistModal({ listId, onClose }: { listId: number; onClose: () => void; }) {
-  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<string[]>([]);
   const [selectedFriend, setSelectedFriend] = useState<string>('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -25,10 +20,11 @@ function ShareStocklistModal({ listId, onClose }: { listId: number; onClose: () 
   useEffect(() => {
     const fetchFriends = async () => {
       try {
-        const response = await fetch('http://localhost:8000/users/friends', { credentials: 'include' });
+        const response = await fetch('http://localhost:8000/users/friends/all', { credentials: 'include' });
         if (!response.ok) throw new Error('Failed to fetch friends');
         const data = await response.json();
-        setFriends(data.friends || []);
+        console.log(data);
+        setFriends(data.users || []);
       } catch (err: any) {
         setError(err.message);
       }
@@ -50,7 +46,7 @@ function ShareStocklistModal({ listId, onClose }: { listId: number; onClose: () 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ friend_id: parseInt(selectedFriend) }),
+        body: JSON.stringify({ friendname: selectedFriend }),
       });
 
       if (!response.ok) {
@@ -84,8 +80,8 @@ function ShareStocklistModal({ listId, onClose }: { listId: number; onClose: () 
             >
               <option value="" disabled>-- Choose a friend --</option>
               {friends.map((friend) => (
-                <option key={friend.id} value={friend.id}>
-                  {friend.username}
+                <option key={friend} value={friend}>
+                  {friend}
                 </option>
               ))}
             </select>
