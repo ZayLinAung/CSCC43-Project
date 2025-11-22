@@ -33,6 +33,13 @@ def list_allStocks_bySymbol():
 
     return {"result": results}
 
+def get_market_variance():
+    query = ("SELECT VARIANCE(close), AVG(close) FROM stocks;")
+    results = execute_query(query)
+    print(results[0])
+
+    return results[0]['variance'] / results[0]['avg']
+
 # Endpoint to get stocks by symbol
 @router.get("/{symbol}")
 def get_stocks_by_symbol(symbol: str, request: Request):
@@ -124,3 +131,16 @@ def add_stock(symbol: str):
             )
 
     return {"message": "Stock data updated successfully"}
+
+
+@router.get("/get-variance/{symbol}")
+def get_variance(symbol:str):
+    print(symbol)
+    prices = execute_query("""
+        SELECT VARIANCE(close), AVG(close) FROM stocks WHERE symbol=%s;
+    """, (symbol,))
+
+    print(prices)
+    if not prices:
+        raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
+    return {"COV": prices.variance/prices.avg}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -108,6 +108,29 @@ function ReviewModal({ stocklistId, existingReview, onReviewSubmitted, onClose, 
   );
 }
 
+function DeleteStocklistModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: () => void; }) {
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you absolutely sure?</DialogTitle>
+          <DialogDescription>
+            This action cannot be undone. This will permanently delete this stocklist and all of its contents.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="mt-4">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
+            Delete
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SellStockModal({ item, onClose, onSold }: { item: StocklistItem; onClose: () => void; onSold: () => void; }) {
   const params = useParams();
   const id = params.id;
@@ -197,8 +220,10 @@ export default function StocklistDetailPage() {
   const [selectedItem, setSelectedItem] = useState<StocklistItem | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentUserReview, setCurrentUserReview] = useState<Review | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>('');
+  const router = useRouter();
 
   const fetchStocklistData = async () => {
     if (!id) return;
@@ -301,6 +326,28 @@ export default function StocklistDetailPage() {
     fetchStocklistData();
   };
 
+  const handleDeleteStocklist = async () => {
+    if (!id) return;
+    try {
+      const response = await fetch(`http://localhost:8000/stocklists/delete/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to delete stocklist');
+      }
+      
+      setIsDeleteModalOpen(false);
+      router.push('/stocklists');
+    } catch (err: any) {
+      setError(err.message);
+      // Optionally close the modal even if there's an error
+      setIsDeleteModalOpen(false);
+    }
+  };
+
   const handleDeleteReview = async (reviewId: number) => {
     if (!id) return;
     try {
@@ -353,6 +400,12 @@ export default function StocklistDetailPage() {
           }} 
         />
       )}
+      {isDeleteModalOpen && (
+        <DeleteStocklistModal
+          onClose={() => setIsDeleteModalOpen(false)}
+          onConfirm={handleDeleteStocklist}
+        />
+      )}
        <ReviewModal
         isOpen={isReviewModalOpen}
         onClose={() => setIsReviewModalOpen(false)}
@@ -362,8 +415,20 @@ export default function StocklistDetailPage() {
       />
       <div className="min-h-screen z-1 bg-gray-100">
         <div className="container z-1 px-4 py-8 mx-auto">
-          <h1 className="mb-2 text-4xl font-bold text-gray-800">{stocklist.title}</h1>
-          <p className="mb-6 text-lg text-gray-600">by {stocklist.username}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="mb-2 text-4xl font-bold text-gray-800">{stocklist.title}</h1>
+              <p className="mb-6 text-lg text-gray-600">by {stocklist.username}</p>
+            </div>
+            {currentUsername === stocklist.username && (
+              <button 
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-4 py-2 font-semibold text-white bg-red-600 rounded-md hover:bg-red-700"
+              >
+                Delete Stocklist
+              </button>
+            )}
+          </div>
 
           <div className="mb-8">
             <form onSubmit={handleAddItem} className="flex items-center max-w-lg gap-2">

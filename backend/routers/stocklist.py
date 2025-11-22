@@ -62,7 +62,7 @@ def delete_stocklist(stocklist_id: int, current_user: str = Depends(get_current_
     try:
         cur = conn.cursor()
         cur.execute("DELETE FROM stocklists WHERE stocklist_id = %s " \
-        "AND username = %s;", (stocklist_id, current_user))
+        "AND username = %s RETURNING *;", (stocklist_id, current_user))
         deleted = cur.fetchone()
         conn.commit()
         cur.close()
@@ -160,6 +160,7 @@ def get_stocklist_items(stocklist_id: int, current_user: str = Depends(get_curre
         cur = conn.cursor()
         cur.execute("SELECT * FROM stocklists WHERE stocklist_id = %s;", (stocklist_id,))
         stocklist_info = cur.fetchone()
+        print(stocklist_info)
         if not stocklist_info or stocklist_info["visibility"] == "private" and stocklist_info["username"] != current_user:
             raise HTTPException(status_code=403, detail="You do not have permission to view this stocklist")
         if stocklist_info["visibility"] == "friends":
@@ -170,8 +171,7 @@ def get_stocklist_items(stocklist_id: int, current_user: str = Depends(get_curre
                 raise HTTPException(status_code=403, detail="You do not have permission to view this stocklist")
 
         cur.execute("""SELECT symbol, shares FROM slitems NATURAL JOIN stocklists
-                     WHERE stocklist_id = %s
-                    );""",
+                     WHERE stocklist_id = %s;""",
                     (stocklist_id,))
 
         items = cur.fetchall()
