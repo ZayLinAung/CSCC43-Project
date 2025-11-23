@@ -1,9 +1,10 @@
 "use client";
 
-import { Component, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ManualUpdateForm from "@/components/StockInfoManual";
 import AutoUpdateButton from "@/components/StockInfoAuto";
+import StockPredictionChart from "@/components/StockPredictionChart";
 import {
   LineChart,
   Line,
@@ -33,6 +34,14 @@ const INTERVALS = [
   { label: "ALL", days: Infinity },
 ];
 
+const PREDICTION_INTERVALS = [
+  { label: "7 Days", days: 7 },
+  { label: "30 Days", days: 30 },
+  { label: "90 Days", days: 90 },
+  { label: "180 Days", days: 180 },
+  { label: "1 Year", days: 365 },
+];
+
 export default function StockDetailPage() {
   const params = useParams();
   const symbol = params.symbol as string;
@@ -44,7 +53,13 @@ export default function StockDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch stock data
+  // ---- NEW: Prediction state ----
+  const [predHistory, setPredHistory] = useState([]);
+  const [predFuture, setPredFuture] = useState([]);
+  const [selectedPredInterval, setSelectedPredInterval] = useState(30);
+  const [predLoading, setPredLoading] = useState(true);
+
+  // Fetch stock historical data
   useEffect(() => {
     async function fetchStock() {
       try {
@@ -59,9 +74,9 @@ export default function StockDetailPage() {
         setLoading(false);
       }
     }
-
     fetchStock();
   }, [symbol]);
+
 
   useEffect(() => {
     if (!data.length) return;
@@ -75,7 +90,6 @@ export default function StockDetailPage() {
     }
 
     const now = new Date(data[data.length - 1].timestamp);
-
     const filteredData = data.filter((entry) => {
       const diff =
         (now.getTime() - new Date(entry.timestamp).getTime()) /
@@ -86,16 +100,35 @@ export default function StockDetailPage() {
     setFiltered(filteredData);
   }, [selectedInterval, data]);
 
+  
+  useEffect(() => {
+    async function fetchPrediction() {
+      try {
+        setPredLoading(true);
+        const res = await fetch(
+          `http://localhost:8000/stocks/${symbol}/predict?days=${selectedPredInterval}`
+        );
+        const payload = await res.json();
+
+        setPredHistory(payload.history);
+        setPredFuture(payload.prediction);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setPredLoading(false);
+      }
+    }
+
+    fetchPrediction();
+  }, [symbol, selectedPredInterval]);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl px-6 py-10 mx-auto">
+      <div className="max-w-5xl px-6 py-10 mx-auto">
+        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-800">{symbol} Stock</h1>
-
-          {/* Auto update button on the right */}
-          <div>
-            <AutoUpdateButton symbol={symbol} />
-          </div>
+          <AutoUpdateButton symbol={symbol} />
         </div>
 
         {/* Interval Buttons */}
@@ -116,8 +149,8 @@ export default function StockDetailPage() {
           ))}
         </div>
 
-        {/* Graph */}
-        <div className="w-full h-80 bg-white rounded-xl shadow p-4">
+        {/* Historical Price Chart */}
+        <div className="w-full h-80 bg-white rounded-xl shadow p-4 mb-10">
           {loading ? (
             <p className="text-center">Loading chart...</p>
           ) : error ? (
@@ -144,7 +177,41 @@ export default function StockDetailPage() {
             </ResponsiveContainer>
           )}
         </div>
-        <ManualUpdateForm symbol={symbol} />
+
+        <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+          Future Price Prediction
+        </h2>
+
+        <div className="flex gap-3 mb-4">
+          {PREDICTION_INTERVALS.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => setSelectedPredInterval(opt.days)}
+              className={`px-4 py-2 rounded-lg border transition 
+                ${
+                  selectedPredInterval === opt.days
+                    ? "bg-green-600 text-white"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="w-full min-h-[28rem] bg-white rounded-xl shadow p-4 mb-12">
+          {predLoading ? (
+            <p className="text-center">Loading predictions...</p>
+          ) : (
+            <StockPredictionChart
+              prediction={predFuture}
+            />
+          )}
+        </div>
+
+        <div>
+          <ManualUpdateForm symbol={symbol} />
+        </div>
       </div>
     </div>
   );

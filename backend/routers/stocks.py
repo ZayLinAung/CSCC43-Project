@@ -3,6 +3,17 @@ from pydantic import BaseModel
 from database.db import execute_query
 from datetime import date
 import requests, os
+import pandas as pd
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from datetime import timedelta
+from datetime import date
+import json
+from redis_client import redis_client
+
+class PredictionResponse(BaseModel):
+    symbol: str
+    history: list
+    prediction: list
 
 router = APIRouter(
     prefix="/stocks",
@@ -36,26 +47,13 @@ def list_allStocks_bySymbol():
 # Endpoint to get stocks by symbol
 @router.get("/{symbol}")
 def get_stocks_by_symbol(symbol: str, request: Request):
-    query = ("SELECT * FROM stocks WHERE symbol=%s;")
+    query = ("SELECT * FROM stocks WHERE symbol=%s ORDER BY timestamp ASC;")
     results = execute_query(query, (symbol,))
 
     if not results:
         raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
 
     return {"result": results}
-
-
-# Endpoint to get stocks by symbol
-@router.get("/prediction/{symbol}")
-def get_stocks_by_symbol(symbol: str, request: Request):
-    query = ("SELECT * FROM stocks WHERE symbol=%s;")
-    results = execute_query(query, (symbol,))
-
-    if not results:
-        raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
-
-    return {"result": results}
-
 
 
 # Endpoint to update daily stocks information (manual)
@@ -137,3 +135,62 @@ def add_stock(symbol: str):
             )
 
     return {"message": "Stock data updated successfully"}
+
+
+@router.get("/{symbol}/predict", response_model=PredictionResponse)
+async def predict_stock(symbol: str, days: int = 30):
+    """
+    Predict future close prices using Holt-Winters Exponential Smoothing.
+    """
+
+    cache_key = f"prediction:{symbol}:{days}"
+
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    query = """
+        SELECT timestamp, close
+        FROM stocks
+        WHERE symbol = %s
+        ORDER BY timestamp ASC;
+    """
+    rows = execute_query(query, (symbol,))
+
+    if not rows or len(rows) < 10:
+        raise HTTPException(status_code=400, detail="Not enough data to predict.")
+
+    df = pd.DataFrame(rows, columns=["timestamp", "close"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df.set_index("timestamp", inplace=True)
+
+    model = ExponentialSmoothing(
+        df["close"],
+        trend="add",
+        seasonal=None,
+        initialization_method="estimated"
+    ).fit()
+
+    forecast = model.forecast(days)
+    last_date = pd.Timestamp(date.today())
+    future_dates = [(last_date + timedelta(days=i+1)).strftime("%Y-%m-%d") for i in range(days)]
+
+    prediction = [
+        {"date": str(future_dates[i]), "predicted_close": float(forecast.iloc[i])}
+        for i in range(days)
+    ]
+
+    history = [
+        {"date": str(idx.date()), "close": float(row.close)}
+        for idx, row in df.iterrows()
+    ]
+
+    result = {
+        "symbol": symbol,
+        "history": history,
+        "prediction": prediction
+    }
+
+    await redis_client.set(cache_key, json.dumps(result), ex=6 * 3600)
+
+    return result

@@ -1,12 +1,12 @@
 -- ==============================
 --  ENUM TYPES
 -- ==============================
--- CREATE TYPE transaction_type AS ENUM (
---     'cash_deposit',
---     'cash_withdraw',
---     'stock_buy',
---     'stock_sell'
--- );
+CREATE TYPE transaction_type AS ENUM (
+    'cash_deposit',
+    'cash_withdraw',
+    'stock_buy',
+    'stock_sell'
+);
 
 -- ==============================
 --  PORTFOLIO TABLE

@@ -54,8 +54,6 @@ def create_portfolio(current_user: str = Depends(get_current_user)):
 @router.get("")
 def get_allOwned_portfolio(current_user: str = Depends(get_current_user)):
 
-    print('called')
-
     query = """
         SELECT * FROM portfolio NATURAL JOIN portfolio_owned
         WHERE username = %s;
@@ -105,8 +103,7 @@ def get_stocks_in_portfolio(portfolio_id: int, current_user: str = Depends(get_c
 
     cash = cash_result[0]["cash"]
 
-    return {"cash": cash, "results": results}
-
+    return {"cash": cash, "results": results, "portfoliomarketvalue": sum([row['presentmarketvalue'] * row['shares'] for row in results])}
 
 @router.post("/{portfolio_id}/transcation")
 def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_user: str = Depends(get_current_user)):
@@ -118,7 +115,6 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
 
     # Handle transaction types
     if transaction.type == "cash_deposit":
-        print('hi')
         queries.append("UPDATE portfolio SET cash = cash + %s WHERE portfolio_id = %s;")
         params.append((transaction.cash, portfolio_id))
 
