@@ -39,12 +39,25 @@ def list_allStocks_bySymbol():
 @router.get("/{symbol}")
 def get_stocks_by_symbol(symbol: str, request: Request):
     query = ("SELECT * FROM stocks WHERE symbol=%s;")
-    results = execute_query(query, (symbol))
+    results = execute_query(query, (symbol,))
 
     if not results:
         raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
 
     return {"result": results}
+
+
+# Endpoint to get stocks by symbol
+@router.get("/prediction/{symbol}")
+def get_stocks_by_symbol(symbol: str, request: Request):
+    query = ("SELECT * FROM stocks WHERE symbol=%s;")
+    results = execute_query(query, (symbol,))
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}'")
+
+    return {"result": results}
+
 
 
 # Endpoint to update daily stocks information (manual)
@@ -142,78 +155,4 @@ def get_variance(symbol:str):
     return {"COV": prices[0]['var_samp'] / prices[0]['avg']}
 
 
-@router.get("/get-beta/{symbol}")
-def get_beta(symbol:str):
-    stock_returns = execute_query("""
-        SELECT close/LAG(close)OVER(ORDER BY timestamp)-1 r
-        FROM stocks
-        WHERE symbol=%s
-    """, (symbol,))
 
-    market_returns = execute_query("""
-        WITH per_stock_returns AS (
-            SELECT
-                timestamp,
-                symbol,
-                close / LAG(close) OVER (PARTITION BY symbol ORDER BY timestamp) - 1 AS r
-            FROM stocks
-        ),
-        market AS (
-            SELECT
-                timestamp,
-                AVG(r) AS market_r
-            FROM per_stock_returns
-            WHERE r IS NOT NULL
-            GROUP BY timestamp
-        )
-        SELECT market_r
-        FROM market
-        ORDER BY timestamp;
-    """)
-
-    if not stock_returns or not market_returns:
-        raise HTTPException(status_code=404, detail=f"No stocks found for symbol '{symbol}' or market index")
-
-    n = min(len(stock_returns), len(market_returns))
-    print(n)
-    stock_returns = [stock_returns[i]['r'] for i in range(1, n)]
-    market_returns = [market_returns[i]['market_r'] for i in range(1, n)]
-    print(len(stock_returns), len(market_returns))
-
-
-    cov = sum((stock_returns[i] - sum(stock_returns)/n) * (market_returns[i] - sum(market_returns)/n) for i in range(n - 1)) / (n - 2)
-    var_market = sum((market_returns[i] - sum(market_returns)/(n - 1)) ** 2 for i in range(n - 1)) / (n - 2)
-
-    beta = cov / var_market
-
-    return {"beta": beta}
-
-
-@router.get("/get-cov-corr/{portfolio}")
-def get_cov_corr(portfolio):
-
-    rows = execute_query("""
-        WITH all_returns AS (
-            SELECT
-                stocks.timestamp,
-                stocks.symbol,
-                close / LAG(close) OVER (
-                    PARTITION BY stocks.symbol ORDER BY stocks.timestamp
-                ) - 1 AS r
-            FROM stocks JOIN portfolio_holdings ON stocks.symbol = portfolio_holdings.stock_symbol
-            WHERE portfolio_holdings.portfolio_id = %s
-        )
-        SELECT timestamp, symbol, r
-        FROM all_returns
-        WHERE r IS NOT NULL
-        ORDER BY timestamp, symbol;
-    """, (portfolio))
-
-    df = pd.DataFrame(rows)
-    print(df)
-    pivot = df.pivot(index="timestamp", columns="symbol", values="r").dropna()
-
-    cov_matrix = pivot.cov()
-    corr_matrix = pivot.corr()
-
-    return cov_matrix, corr_matrix

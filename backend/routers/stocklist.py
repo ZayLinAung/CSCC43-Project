@@ -163,7 +163,7 @@ def get_stocklist_items(stocklist_id: int, current_user: str = Depends(get_curre
         print(stocklist_info)
         if not stocklist_info or stocklist_info["visibility"] == "private" and stocklist_info["username"] != current_user:
             raise HTTPException(status_code=403, detail="You do not have permission to view this stocklist")
-        if stocklist_info["visibility"] == "friends":
+        if stocklist_info["visibility"] == "friends" and stocklist_info["username"] != current_user:
             cur.execute("SELECT * FROM shared WHERE stocklist_id = %s AND friendname = %s;",
                         (stocklist_id, current_user))
             cur_result = cur.fetchone()
