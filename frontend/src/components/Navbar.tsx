@@ -20,7 +20,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold text-indigo-600">
-              MyApp
+              Stock Social
             </Link>
           </div>
           <div className="hidden space-x-8 md:flex">
