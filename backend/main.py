@@ -2,6 +2,7 @@ from routers import auth, stocklist, users, stocks, reviews, portfolio
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from redis_client import redis_client
 
 app = FastAPI()
 
@@ -26,3 +27,9 @@ app.include_router(portfolio.router)
 @app.get("/test")
 def read_test():
     return {"message": "Welcome to FastAPI"}
+
+@app.get("/redis-test")
+async def test_redis():
+    await redis_client.set("hello", "world")
+    value = await redis_client.get("hello")
+    return {"value": value}

@@ -22,6 +22,7 @@ export default function PortfolioDetailPage() {
   const [beta, setBeta] = useState<Record<string, number>>({});
   const [covarianceMatrix, setCovarianceMatrix] = useState<Record<string, Record<string, number>>>({});
   const [correlationMatrix, setCorrelationMatrix] = useState<Record<string, Record<string, number>>>({});
+  const [portfolioMarketValue, setPortfolioMarketValue] = useState<number>(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export default function PortfolioDetailPage() {
       setBeta(betaData);
       setCovarianceMatrix(covCorrData.covariance_matrix);
       setCorrelationMatrix(covCorrData.correlation_matrix);
+      setPortfolioMarketValue(portfolioData.portfoliomarketvalue || 0);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -86,9 +88,6 @@ export default function PortfolioDetailPage() {
     }
   };
 
-  // Add stock
-  // Buy stock (using /transcation)
-  // Add stock (Buy)
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -314,13 +313,24 @@ export default function PortfolioDetailPage() {
           <h1 className="text-4xl font-extrabold mb-6">Portfolio {id}</h1>
 
           {/* Cash Card */}
-          <div className="bg-white rounded-xl shadow p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-700">
-              Available Cash
-            </h2>
-            <p className="text-3xl font-bold mt-2 text-green-600">
-              ${cash.toLocaleString()}
-            </p>
+          <div className="flex gap-6">
+              <div className="bg-white rounded-xl shadow p-6 mb-8">
+              <h2 className="text-xl font-semibold text-gray-700">
+                Available Cash
+              </h2>
+              <p className="text-3xl font-bold mt-2 text-green-600">
+                ${cash.toLocaleString()}
+              </p>
+            </div>
+
+             <div className="bg-white rounded-xl shadow p-6 mb-8">
+              <h2 className="text-xl font-semibold text-gray-700">
+                Present Market Value
+              </h2>
+              <p className="text-3xl font-bold mt-2 text-green-600">
+                ${portfolioMarketValue.toLocaleString()}
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-4 mb-4">

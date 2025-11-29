@@ -5,7 +5,8 @@ from datetime import date
 from routers.auth import get_current_user
 import pandas as pd
 from collections import defaultdict
-
+from redis_client import redis_client
+import json
 
 router = APIRouter(
     prefix="/portfolio",
@@ -53,8 +54,14 @@ def create_portfolio(current_user: str = Depends(get_current_user)):
     }
 
 @router.get("/get-variance/{portfolio_id}")
-def get_variance_portfolio(portfolio_id: int):
+async def get_variance_portfolio(portfolio_id: int):
 
+    cache_key = f"variance:{portfolio_id}"
+
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
     prices = execute_query("""
         SELECT symbol, VAR_SAMP(r) as var_samp, AVG(r) as avg_r
         FROM (
@@ -66,11 +73,18 @@ def get_variance_portfolio(portfolio_id: int):
     """, (portfolio_id,))
     
     result = {p['symbol']: p['var_samp'] / p['avg_r'] for p in prices}
+    await redis_client.set(cache_key, json.dumps(result))
     return result
 
 
 @router.get("/get-beta/{portfolio_id}")
-def get_beta_portfolio(portfolio_id: int):
+async def get_beta_portfolio(portfolio_id: int):
+
+    cache_key = f"beta:{portfolio_id}"
+
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
 
     stock_returns = execute_query("""
         WITH per_stock_returns AS (
@@ -131,12 +145,20 @@ def get_beta_portfolio(portfolio_id: int):
 
         betas[symbol] = cov / var_market if var_market != 0 else None
 
+    await redis_client.set(cache_key, json.dumps(betas))
+
     return betas
 
 
 @router.get("/get-cov-corr/{portfolio_id}")
-def get_cov_corr(portfolio_id: int):
-    print('called')
+async def get_cov_corr(portfolio_id: int):
+
+    cache_key = f"matrix:{portfolio_id}"
+
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
     rows = execute_query("""
         WITH all_returns AS (
             SELECT
@@ -155,20 +177,21 @@ def get_cov_corr(portfolio_id: int):
     """, (portfolio_id, ))
 
     df = pd.DataFrame(rows)
-    print(df)
+    if df.empty or df['symbol'].nunique() < 2:
+        return {"covariance_matrix": {}, "correlation_matrix": {}}
     pivot = df.pivot(index="timestamp", columns="symbol", values="r").dropna()
 
     cov_matrix = pivot.cov()
     corr_matrix = pivot.corr()
+    result = {"covariance_matrix": cov_matrix.to_dict(), "correlation_matrix": corr_matrix.to_dict()}
+    await redis_client.set(cache_key, json.dumps(result))
 
-    return {"covariance_matrix": cov_matrix.to_dict(), "correlation_matrix": corr_matrix.to_dict()}
+    return result
 
 
 # Endpoint to get all owned portfolios
 @router.get("")
 def get_allOwned_portfolio(current_user: str = Depends(get_current_user)):
-
-    print('called')
 
     query = """
         SELECT * FROM portfolio NATURAL JOIN portfolio_owned
@@ -219,11 +242,10 @@ def get_stocks_in_portfolio(portfolio_id: int, current_user: str = Depends(get_c
 
     cash = cash_result[0]["cash"]
 
-    return {"cash": cash, "results": results}
-
+    return {"cash": cash, "results": results, "portfoliomarketvalue": sum([row['presentmarketvalue'] * row['shares'] for row in results])}
 
 @router.post("/{portfolio_id}/transcation")
-def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_user: str = Depends(get_current_user)):
+async def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_user: str = Depends(get_current_user)):
 
     queries = []
     params = []
@@ -232,7 +254,6 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
 
     # Handle transaction types
     if transaction.type == "cash_deposit":
-        print('hi')
         queries.append("UPDATE portfolio SET cash = cash + %s WHERE portfolio_id = %s;")
         params.append((transaction.cash, portfolio_id))
 
@@ -314,6 +335,11 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
         params.append((-total_cost, "stock_buy", today, portfolio_id, current_user,
                        transaction.stock_symbol, transaction.shares))
         
+        await redis_client.delete(f"matrix:{portfolio_id}")
+        await redis_client.delete(f"beta:{portfolio_id}")
+        await redis_client.delete(f"variance:{portfolio_id}")
+
+        
     else:
         price_query = """
             SELECT close 
@@ -376,6 +402,10 @@ def portfolio_transcation(portfolio_id: int, transaction: Transaction, current_u
         """)
         params.append((total_cost, "stock_sell", today, portfolio_id, current_user,
                     transaction.stock_symbol, transaction.shares))
+        
+        await redis_client.delete(f"matrix:{portfolio_id}")
+        await redis_client.delete(f"beta:{portfolio_id}")
+        await redis_client.delete(f"variance:{portfolio_id}")
 
     try:
         for query,para in zip(queries, params):
