@@ -27,6 +27,7 @@ def get_own_stocklists(current_user: str = Depends(get_current_user)):
         cur = conn.cursor()
         cur.execute("SELECT * FROM stocklists WHERE username = %s;", (current_user,))
         stocklists = cur.fetchall()
+        print(stocklists)
         cur.close()
         return {"stocklists": stocklists}
     except Exception as e:

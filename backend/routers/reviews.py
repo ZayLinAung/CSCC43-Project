@@ -84,8 +84,8 @@ def add_stocklist_review(stocklist_id: int, review: ReviewPayload, current_user:
             cur.execute("INSERT INTO reviews (stocklist, username, content) VALUES (%s, %s, %s) RETURNING review_id;",
                     (stocklist_id, current_user, review.content))
         else:
-            cur.execute("SELECT * FROM stocklists JOIN shared ON stocklists.stocklist_id = shared.stocklist_id WHERE stocklists.stocklist_id = %s;",
-                        (stocklist_id,))
+            cur.execute("SELECT * FROM stocklists JOIN shared ON stocklists.stocklist_id = shared.stocklist_id WHERE stocklists.stocklist_id = %s AND shared.friendname = %s;",
+                        (stocklist_id, current_user))
             stocklist = cur.fetchone()
             if not stocklist or (stocklist["username"] != current_user and stocklist.get("friendname") != current_user):
                 raise HTTPException(status_code=403, detail="You do not have permission to review this stocklist.")
