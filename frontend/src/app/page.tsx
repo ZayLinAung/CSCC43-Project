@@ -212,7 +212,7 @@ export default function Home() {
       <div className="w-full max-w-6xl mx-auto">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
-            <span className="block">Welcome</span>
+            <span className="block">Welcome to Stock Social</span>
           </h1>
           <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl">
             Login or Sign up to continue.
